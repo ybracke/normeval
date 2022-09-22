@@ -1,102 +1,103 @@
 import Levenshtein
 import numpy as np
 from sklearn.metrics import f1_score, accuracy_score
+from typing import List, Union, Iterable, Dict, Callable
 
-def seqsdist(seq1, seq2, dist_metric):
-    ''' 
+
+def evaluate(
+    pred: List[str], gold: List[str], methods: Union[str, Iterable[str]] = "all"
+) -> Dict:
+    """
+    Create a dictionary with evaluation results for predicted and gold labels.
+
+    Arguments
+    ---------
+    `methods` : either 'all' or an Iterable containing one or more of the
+    following: `'LD', 'CER', 'acc', 'macro-f1'`
+
+    Returns
+    --------
+    `results` looks like this: ``` {
+        "ld": {
+            "mean": 0.21266331658291457, "std": 0.78874013286826, "max": 8,
+            "min": 0, "median": 0.0, "q1,q2,q3,q4": [
+                0.0, 0.0, 0.0, 8.0
+            ]
+        }, "CER" : {
+            ### as above ###
+        }, "accuracy": 0.893467336683417, "macro-F1": 0.7188353353436098
+    }
+    ```
+    """
+
+    if methods == "all":
+        methods = ["LD", "CER", "acc", "macro-f1"]
+
+    if len(pred) != len(gold):
+        raise ValueError(f"Sequences must be of equal length: {len(pred)}!={len(gold)}")
+
+    # Both lists empty?
+    if len(pred) == 0:
+        return {}
+
+    # Create results dictionary
+    results = {}
+
+    # Compute string distances if needed
+    if any(m in methods for m in ["LD", "CER"]):
+        dists = seqsdist(pred, gold)
+
+    if "LD" in methods:
+        results["LD"] = _create_entry(dists)
+
+    if "CER" in methods:
+        cers = cer(dists, [len(w) for w in gold])
+        results["CER"] = _create_entry(cers)
+
+    if "acc" in methods:
+        results["acc"] = accuracy_score(gold, pred)
+
+    if "macro-f1" in methods:
+        results["macro-f1"] = f1_score(gold, pred, average="macro", zero_division=0)
+
+    return results
+
+
+def seqsdist(
+    seq1: List[str], seq2: List[str], dist_func: Callable = Levenshtein.distance
+) -> List[int]:
+    """
     String distances of elements in 2 lists at same index position
-    
+
     `seq1`, `seq2` are lists of strings, must have same length
-    dist_metric can currently only be 'lev' for Levenshtein.distance
-    '''
-    
-    # Check 
-    if not( len(seq1) == len(seq2)):
-        raise ValueError(
-            f'Sequence length must match: {len(seq1)}!={len(seq2)}')
+    """
 
-    # Lookup metric method
-    metrics = {'lev' : Levenshtein.distance} # TODO add more
-    dist_metric = metrics[dist_metric]
-
-    n = len(seq1)
-
-    # array with string distances 
-    try: 
-        dists = [dist_metric(seq1[i],seq2[i]) for i in range(n)]
-    except:
-        raise
-    return dists
+    return [dist_func(w1, w2) for w1, w2 in zip(seq1, seq2)]
 
 
-
-class Evaluator():
-
-    def __init__(self, pred=[], gold=[]):
-        ''' 
-        Evaluator object for computing similarity between two word lists
-
-        Use cases: Comparing the output of automatic normalization with
-        a gold normalization,
-        
-        Initialize `Evaluator` empty or with two word lists 
-        '''
-
-        self.pred = pred
-        self.gold = gold
-        self.n_corpus = len(gold)
-
-    def _get_and_enter_stats(self, array, results, key):
-        '''
-        Parameters
-        ----------
-
-        array : list/array of numbers, some string metric
-        results : dict to be updated
-        key : entry to make in `results`, typically name of string metric
-        '''
-        results[key] = {}
-        results[key]['mean'] = np.mean(array)
-        results[key]['std'] = np.std(array)
-        results[key]['max'] = max(array)
-        results[key]['min'] = min(array)
-        results[key]['median'] = np.median(array)
-        results[key]['q1,q2,q3,q4'] = list(
-            np.quantile(array, [.25,.5,.75,1]))
-
-    def evaluate(self, methods):
-        ''' 
-        Perform one or more evaluation methods on data and return results 
-
-        `methods` can be either `'all'` or a list of strings with the 
-        following possible elements: `'lev', 'levn', 'acc', 'macro-f1'`
-        '''
-
-        results = {}
-
-        # Levenshtein distance (LD)
-        if ('lev' in methods) or (methods == 'all'):
-            
-            # Vanilla LD
-            dists = seqsdist(self.gold, self.pred, dist_metric='lev')
-            self._get_and_enter_stats(dists, results, "Levenshtein")
-
-            # LD normalized by length of longer string
-            if ('levn' in methods) or (methods == 'all'): 
-                dists_norm = [dists[i] / len(max(self.gold[i], self.pred[i])) 
-                              for i in range(self.n_corpus)]
-                self._get_and_enter_stats(dists_norm, results, 
-                                          "Levenshtein_norm")
-
-        # Accuracy
-        if ('acc' in methods) or (methods == 'all'):
-            results['accuracy'] = accuracy_score(self.gold, self.pred)
-
-        # Macro-F1
-        if ('macro-f1' in methods) or (methods == 'all'):
-            results['macro-F1'] = f1_score(self.gold, self.pred,
-                                           average='macro', zero_division=0)
-
-        return results
+def cer(dists: List[int], lengths: List[int]) -> List[float]:
+    """
+    Character error rate (CER)
+    Levenshtein distance normalized by reference word length
+    """
+    return [0 if dist == 0 else dist / l for dist, l in zip(dists, lengths)]
 
 
+def _create_entry(values: List[float]) -> Dict["str", Union[float, List]]:
+    """
+    Create a dictionary with different function results for a numerical array.
+
+    Functions are: np.mean, np.std, max, min, np.median, np.quantile
+
+    Helper function for `evaluate`
+
+    values : list/array of numbers, some string metric
+    """
+    entry = {}
+    funcs = [np.mean, np.std, max, min, np.median]
+    for func in funcs:
+        entry[func.__name__] = func(values)
+    # Add quantiles
+    entry["q1,q2,q3,q4"] = list(np.quantile(values, [0.25, 0.5, 0.75, 1]))
+
+    return entry

@@ -1,7 +1,7 @@
+from typing import List, Union, Iterable, Dict, Callable
 import Levenshtein
 import numpy as np
 from sklearn.metrics import f1_score, accuracy_score
-from typing import List, Union, Iterable, Dict, Callable
 
 
 def evaluate(
@@ -34,7 +34,7 @@ def evaluate(
         methods = ["LD", "CER", "acc", "macro-f1"]
 
     if len(pred) != len(gold):
-        raise ValueError(f"Sequences must be of equal length: {len(pred)}!={len(gold)}")
+        raise ValueError(f"Sequences must be of equal length: {len(pred)=}!={len(gold)=}")
 
     # Both lists empty?
     if len(pred) == 0:
@@ -80,10 +80,10 @@ def cer(dists: List[int], lengths: List[int]) -> List[float]:
     Character error rate (CER)
     Levenshtein distance normalized by reference word length
     """
-    return [0 if dist == 0 else dist / l for dist, l in zip(dists, lengths)]
+    return [0 if dist == 0 else dist / length for dist, length in zip(dists, lengths)]
 
 
-def _create_entry(values: List[float]) -> Dict["str", Union[float, List]]:
+def _create_entry(values: List[float]) -> Dict[str, Union[float, List]]:
     """
     Create a dictionary with different function results for a numerical array.
 

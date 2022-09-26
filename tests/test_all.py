@@ -69,4 +69,5 @@ def test_evaluate_some() -> None:
     assert results["LD"]["median"] == 1
     assert results["LD"]["q1,q2,q3,q4"] == [0.25, 1, 1, 3]
     assert results["acc"] == 2 / 6
-    assert results["macro-f1"] == 0.2  # warum nochmal?
+    # macro-f1: 10 classes , 2 x F1=1.0; 8x F1 = 0 -> 2/10
+    assert results["macro-f1"] == 0.2  

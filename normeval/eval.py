@@ -34,7 +34,7 @@ def evaluate(
         methods = ["LD", "CER", "acc", "macro-f1"]
 
     if len(pred) != len(gold):
-        raise ValueError(f"Sequences must be of equal length: {len(pred)=}!={len(gold)=}")
+        raise ValueError(f"Sequences must be of equal length: len(pred)={len(pred)} != len(gold)={len(gold)}")
 
     # Both lists empty?
     if len(pred) == 0:
